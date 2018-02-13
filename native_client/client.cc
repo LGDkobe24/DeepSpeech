@@ -26,56 +26,39 @@
 
 using namespace DeepSpeech;
 
-struct ds_result {
+typedef struct {
   char* string;
   double cpu_time_overall;
-  double cpu_time_mfcc;
-  double cpu_time_infer;
-};
+} ds_result;
 
-// DsSTT() instrumented
-struct ds_result*
+ds_result
 LocalDsSTT(Model& aCtx, const short* aBuffer, size_t aBufferSize,
            int aSampleRate)
 {
-  float* mfcc;
-  struct ds_result* res = (struct ds_result*)malloc(sizeof(struct ds_result));
-  if (!res) {
-    return NULL;
-  }
+  ds_result res = {0};
 
   clock_t ds_start_time = clock();
-  clock_t ds_end_mfcc = 0, ds_end_infer = 0;
 
-  int n_frames = 0;
-  aCtx.getInputVector(aBuffer, aBufferSize, aSampleRate, &mfcc, &n_frames);
-  ds_end_mfcc = clock();
+  res.string = aCtx.stt(aBuffer, aBufferSize, aSampleRate);
 
-  res->string = aCtx.infer(mfcc, n_frames);
-  ds_end_infer = clock();
+  clock_t ds_end_infer = clock();
 
-  free(mfcc);
-
-  res->cpu_time_overall =
+  res.cpu_time_overall =
     ((double) (ds_end_infer - ds_start_time)) / CLOCKS_PER_SEC;
-  res->cpu_time_mfcc =
-    ((double) (ds_end_mfcc  - ds_start_time)) / CLOCKS_PER_SEC;
-  res->cpu_time_infer =
-    ((double) (ds_end_infer - ds_end_mfcc))   / CLOCKS_PER_SEC;
 
   return res;
 }
 
-struct ds_audio_buffer {
+typedef struct {
   char*  buffer;
   size_t buffer_size;
   int    sample_rate;
-};
+} ds_audio_buffer;
 
-struct ds_audio_buffer*
+ds_audio_buffer*
 GetAudioBuffer(const char* path)
 {
-  struct ds_audio_buffer* res = (struct ds_audio_buffer*)malloc(sizeof(struct ds_audio_buffer));
+  ds_audio_buffer* res = (ds_audio_buffer*)malloc(sizeof(ds_audio_buffer));
   if (!res) {
     return NULL;
   }
@@ -184,33 +167,26 @@ GetAudioBuffer(const char* path)
 void
 ProcessFile(Model& context, const char* path, bool show_times)
 {
-  struct ds_audio_buffer* audio = GetAudioBuffer(path);
+  ds_audio_buffer* audio = GetAudioBuffer(path);
 
   // Pass audio to DeepSpeech
   // We take half of buffer_size because buffer is a char* while
   // LocalDsSTT() expected a short*
-  struct ds_result* result = LocalDsSTT(context,
-                                        (const short*)audio->buffer,
-                                        audio->buffer_size / 2,
-                                        audio->sample_rate);
+  ds_result result = LocalDsSTT(context,
+                                 (const short*)audio->buffer,
+                                 audio->buffer_size / 2,
+                                 audio->sample_rate);
   free(audio->buffer);
   free(audio);
 
-  if (result) {
-    if (result->string) {
-      printf("%s\n", result->string);
-      free(result->string);
-    }
+  if (result.string) {
+    printf("%s\n", result.string);
+    free(result.string);
+  }
 
-    if (show_times) {
-      printf("cpu_time_overall=%.05f cpu_time_mfcc=%.05f "
-             "cpu_time_infer=%.05f\n",
-             result->cpu_time_overall,
-             result->cpu_time_mfcc,
-             result->cpu_time_infer);
-    }
-
-    free(result);
+  if (show_times) {
+    printf("cpu_time_overall=%.05f\n",
+           result.cpu_time_overall);
   }
 }
 

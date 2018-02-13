@@ -65,23 +65,6 @@ audioToInputVector(const short* aBuffer, unsigned int aBufferSize,
   // Free mfcc array
   free(mfcc);
 
-  // Whiten inputs (TODO: Should we whiten)
-  double n_inputs = (double)(ds_input_length * frameSize);
-  double mean = 0.0;
-  for (int idx = 0; idx < n_inputs; idx++) {
-    mean += ds_input[idx] / n_inputs;
-  }
-
-  double stddev = 0.0;
-  for (int idx = 0; idx < n_inputs; idx++) {
-    stddev += pow(fabs(ds_input[idx] - mean), 2.0) / n_inputs;
-  }
-  stddev = sqrt(stddev);
-
-  for (int idx = 0; idx < n_inputs; idx++) {
-    ds_input[idx] = (float)((ds_input[idx] - mean) / stddev);
-  }
-
   if (aMfcc) {
     *aMfcc = ds_input;
   }

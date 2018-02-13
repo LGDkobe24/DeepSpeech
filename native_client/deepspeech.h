@@ -8,23 +8,13 @@
 namespace DeepSpeech
 {
 
-  class Private;
+  struct Private;
+
+  struct StreamingState;
 
   class Model {
     private:
       Private* mPriv;
-
-      /**
-       * @brief Perform decoding of the logits, using basic CTC decoder or
-       *        CTC decoder with KenLM enabled
-       *
-       * @param aNFrames       Number of timesteps to deal with
-       * @param aLogits        Matrix of logits, of dimensions:
-       *                       [timesteps][batch_size][num_classes]
-       *
-       * @param[out] String representing the decoded text.
-       */
-      char* decode(int aNFrames, float*** aLogits);
 
     public:
       /**
@@ -96,26 +86,6 @@ namespace DeepSpeech
                           int* aFrameLen = NULL);
 
       /**
-       * @brief Run inference on the given audio.
-       *
-       * Runs inference on the given input vector with the model.
-       * See getInputVector().
-       *
-       * @param aMfcc MFCC features with the appropriate amount of context per
-       *              frame.
-       * @param aNFrames The number of frames in @p aMfcc.
-       * @param aFrameLen (optional) The length of each frame in @p aMfcc. If
-       *                  specified, this will be used to verify the array is
-       *                  large enough.
-       *
-       * @return The resulting string after running inference. The user is
-       *         responsible for freeing this string.
-       */
-      char* infer(float* aMfcc,
-                  int aNFrames,
-                  int aFrameLen = 0);
-
-      /**
        * @brief Use the DeepSpeech model to perform Speech-To-Text.
        *
        * @param aBuffer A 16-bit, mono raw audio signal at the appropriate
@@ -128,6 +98,44 @@ namespace DeepSpeech
       char* stt(const short* aBuffer,
                 unsigned int aBufferSize,
                 int aSampleRate);
+
+      /**
+       * @brief Setup a context used for performing streaming inference.
+       *        the context pointer returned by this function can then be passed
+       *        to {@link feedAudioContent()} and {@link finishStream()}.
+       *
+       * @param aPreAllocFrames Number of timestep frames to reserve. One timestep
+       *                        is equivalent to two window lenghts (50ms), so
+       *                        by default we reserve enough frames for 3 seconds
+       *                        of audio.
+       * @param aSampleRate The sample-rate of the audio signal.
+       *
+       * @return A context pointer that represents the streaming state.
+       */
+      StreamingState* setupStream(unsigned int aPreAllocFrames = 150,
+                                  unsigned int aSampleRate = 16000);
+
+      /**
+       * @brief Feed audio samples to an ongoing streaming inference.
+       *
+       * @param aCtx A streaming context pointer returned by {@link setupStream()}.
+       * @param aBuffer An array of 16-bit, mono raw audio samples at the
+       *                appropriate sample rate.
+       * @param aBufferSize The number of samples in @p aBuffer.
+       */
+      void feedAudioContent(StreamingState* aCtx, const short* aBuffer, unsigned int aBufferSize);
+
+      /**
+       * @brief Signal the end of an audio signal to an ongoing streaming
+       *        inference, returns the STT result over the whole audio signal.
+       *
+       * @param aCtx A streaming context pointer returned by {@link setupStream()}.
+       *
+       * @return The STT result. The user is responsible for freeing the string.
+       *
+       * @note @c finishStream will free the context pointer (@p aCtx).
+       */
+      char* finishStream(StreamingState* aCtx);
   };
 
 }
